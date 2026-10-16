@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Learning to Bridge Humanoid Robot Skills: a single learned policy that hands control between frozen humanoid skills.">
+  <meta name="keywords" content="skill bridging, skill composition, humanoid, reinforcement learning, diffusion, motion tracking, transition policy">
+  <title>Learning to Bridge Humanoid Robot Skills</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=check,content_copy">
+  <link rel="stylesheet" href="static/css/index.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+
+  <script defer src="static/js/index.js"></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="nav-menu">
+      <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div id="nav-menu" class="navbar-menu">
+    <div class="navbar-start" style="flex-grow: 1; justify-content: center;">
+      <a class="navbar-item" href="#top"><span class="icon"><i class="fas fa-home"></i></span></a>
+      <a class="navbar-item" href="#problem">Problem</a>
+      <a class="navbar-item" href="#method">Method</a>
+      <a class="navbar-item" href="#transitions">Transitions</a>
+      <a class="navbar-item" href="#demos">Demos</a>
+      <a class="navbar-item" href="#bibtex">BibTeX</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="hero-body">
+    <div class="container is-max-desktop has-text-centered">
+      <h1 class="title is-1 publication-title">Learning to Bridge Humanoid Robot Skills</h1>
+      <div class="is-size-5 publication-authors">
+        <span class="author-block"><a href="https://orcid.org/0009-0002-1485-5539">Daniel Gigliotti</a></span>
+      </div>
+      <div class="is-size-6 publication-authors">
+        <span class="author-block">Advisor: <a href="https://orcid.org/0000-0001-9057-8946">Luca Iocchi</a></span>
+      </div>
+      <div class="is-size-6 publication-authors">
+        <span class="author-block">Sapienza University of Rome</span>
+      </div>
+      <div class="is-size-5 publication-venue" style="margin: 0.5rem auto 0;">Master's Thesis in Artificial Intelligence and Robotics, 2026</div>
+
+      <div class="publication-links">
+        <span class="link-block">
+          <a href="static/pdfs/thesis.pdf" class="button is-normal is-rounded is-dark">
+            <span class="icon"><i class="fas fa-file-pdf"></i></span><span>Thesis</span>
+          </a>
+        </span>
+        <span class="link-block">
+          <a href="https://github.com/ggldnl/mjlab" class="button is-normal is-rounded is-dark">
+            <span class="icon"><i class="fab fa-github"></i></span><span>Code</span>
+          </a>
+        </span>
+        <span class="link-block">
+          <a href="https://ggldnl.github.io/Skill-Composition/" class="button is-normal is-rounded is-dark">
+            <span class="icon"><i class="fas fa-diagram-project"></i></span><span>Position paper</span>
+          </a>
+        </span>
+        <span class="link-block">
+          <a href="#bibtex" class="button is-normal is-rounded is-dark">
+            <span class="icon"><i class="fas fa-quote-right"></i></span><span>BibTeX</span>
+          </a>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Teaser -->
+<section class="section teaser">
+  <div class="container is-max-desktop">
+    <div class="video-slot">
+      <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+        <source src="static/videos/soccer.mp4" type="video/mp4" onerror="this.closest('.video-slot').classList.add('is-missing')">
+      </video>
+      <img class="video-fallback" src="static/images/soccer_follow.webp" alt="Frames of the soccer demo: walk, bridge, jump, bridge, walk, bridge, kick" loading="lazy">
+      <span class="video-badge">Video coming soon</span>
+    </div>
+    <p class="caption has-text-centered">
+      A Unitree G1 walks toward a fallen robot, jumps over it, walks on and kicks the ball into the goal.
+      Walk, jump and kick are three frozen skills trained independently. Between every two of them, the
+      same learned bridge takes control and brings the robot to a state the next skill can start from.
+    </p>
+  </div>
+</section>
+
+<!-- Abstract -->
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            Humanoid robots can learn agile skills one at a time: walking, jumping, kicking a ball. A useful
+            task needs several of them in a row, and the weak point is the switch. A learned skill only works
+            from states similar to those it was trained on, and two skills trained independently have no reason
+            to fit together: a jump that starts from a crouch cannot take over from a robot in mid stride.
+          </p>
+          <p>
+            This thesis studies whether a single policy, the <b>bridge</b>, can make these switches possible
+            without touching the skills. When one skill ends, the bridge takes control and brings the robot,
+            within a deadline, to a state from which the next skill can continue, then hands over. The bridge
+            never sees the skills. It receives the recent motion of the robot, a short piece of the motion the
+            next skill will perform, and the time available, and it is learned from a corpus of human motion
+            retargeted to the robot.
+          </p>
+          <p>
+            The final bridge, a diffusion planner whose plans are executed by a universal tracker, reaches
+            targets as different as a robot in mid stride, a deep crouch before a jump and an upright walk,
+            without bringing the robot to rest first. In a soccer task on the Unitree G1 it completes all
+            50 runs, against 4 of 50 when the skills are switched directly.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="columns key-ideas">
+      <div class="column">
+        <div class="key-idea">
+          <span class="icon is-medium"><i class="fas fa-snowflake fa-lg"></i></span>
+          <h3 class="title is-6">Frozen skills</h3>
+          <p>No skill is trained again, and no skill knows the bridge exists. Skills can come from task rewards, motion tracking or both.</p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="key-idea">
+          <span class="icon is-medium"><i class="fas fa-shuffle fa-lg"></i></span>
+          <h3 class="title is-6">One bridge for every pair</h3>
+          <p>Transition policies need a network for each pair of skills. A single bridge serves every switch.</p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="key-idea">
+          <span class="icon is-medium"><i class="fas fa-person-walking fa-lg"></i></span>
+          <h3 class="title is-6">Learned from human motion</h3>
+          <p>Trained on about 11 hours of retargeted and stitched human motion, not on rollouts of the skills.</p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="key-idea">
+          <span class="icon is-medium"><i class="fas fa-forward fa-lg"></i></span>
+          <h3 class="title is-6">No stop required</h3>
+          <p>Targets can be moving states, such as mid stride in the approach to a kick, so the robot keeps its momentum.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Problem -->
+<section class="section thread-section" id="problem">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">Problem</h2>
+
+    <h3 class="title is-4">The switch</h3>
+    <div class="content">
+      <p>
+        A skill is a frozen policy together with its initiation set, the states from which it is expected to
+        succeed. A plan runs skills one after another, and each skill either ends on its own or is interrupted
+        by the high level. When it ends, the <span class="tag-source">source skill</span> leaves the robot in a
+        start state <i>A</i>, which is usually outside the initiation set of the
+        <span class="tag-incoming">incoming skill</span>. The <span class="tag-bridge">bridge</span> takes
+        control at that moment and, within a deadline, brings the robot to a target state <i>B</i> from which
+        the incoming skill continues.
+      </p>
+    </div>
+    <figure class="figure">
+      <img src="static/images/switch_timeline.webp" alt="Timeline of a switch: source skill, bridge, incoming skill" loading="lazy">
+      <figcaption class="caption">
+        A switch from walking to jumping. The source skill runs until the interruption, in state <i>A</i>. The
+        bridge controls the robot for <i>h</i> steps, and at the handover, no later than the deadline, the
+        incoming skill takes over from <i>B</i>.
+      </figcaption>
+    </figure>
+
+    <h3 class="title is-4">The request</h3>
+    <div class="content">
+      <p>
+        A single state does not say how the robot is moving: the same posture can be held still or passed
+        through in the middle of a run. Each switch is therefore described by a request with three parts, and
+        the bridge needs nothing else:
+      </p>
+      <ul>
+        <li><b>History</b>: the last second of the source motion, ending in <i>A</i>. It covers a whole gait cycle, so it shows stride, cadence and phase.</li>
+        <li><b>Future</b>: half a second of the incoming motion, starting from <i>B</i>. It tells how the robot has to be moving when the bridge hands over.</li>
+        <li><b>Deadline</b>: the time available, from 0.3 to 1.2 s.</li>
+      </ul>
+      <p>
+        The request has the shape of a motion in-betweening problem: two known pieces of motion with a gap to
+        fill. For training, windows of this shape are cut from recorded motion, where the gap is known. At
+        deployment the history comes from the source skill and the future from the incoming one.
+      </p>
+    </div>
+    <figure class="figure">
+      <img src="static/images/window_example.webp" alt="A transition window cut from the motion corpus" loading="lazy">
+      <figcaption class="caption">
+        A training window with a duration of 45 steps. History and future are given to the bridge, the motion
+        between <i>A</i> and <i>B</i> is what it has to produce.
+      </figcaption>
+    </figure>
+
+    <h3 class="title is-4">Choosing the target</h3>
+    <div class="content">
+      <p>
+        The best target is the best state of the incoming skill that the robot can reach in time, and finding
+        it is left open. As a proxy, targets are <b>entry points</b>: states that the incoming skill actually goes
+        through in a nominal run, each kept with the 32 states that follow it as the future. The skill continues
+        from an entry point as it does in its own runs, so the target is a state it accepts by construction.
+      </p>
+    </div>
+    <figure class="figure">
+      <img src="static/images/kick_entries.webp" alt="Entry points of the kicking skill" loading="lazy">
+      <figcaption class="caption">
+        The six entry points of the kicking skill, labeled with their control step, all in the approach to the
+        ball. The fainter states after them complete the kick.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- Method -->
+<section class="section thread-section" id="method">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">Method</h2>
+
+    <h3 class="title is-4">Motion corpus</h3>
+    <div class="content">
+      <p>
+        The bridge is trained on human motion capture from LAFAN1 and AMASS (CMU and KIT subsets, selected
+        with the BABEL labels), turned into training data by a six stage pipeline:
+      </p>
+      <ol>
+        <li>Selection: keep walking, running, turning, stopping, crouching and jumping; drop dancing, fighting and object interaction.</li>
+        <li>Retargeting with GMR and grounding: fix feet that hover above or sink below the floor.</li>
+        <li>Kinematic filtering: mark frames the robot should not be asked to reproduce, with limits specific to each robot.</li>
+        <li>Motion graphs: stitch pieces of unrelated clips, so that a window can start in one motion and end in another.</li>
+        <li>Windowing: cut history, gap and future from each clip.</li>
+        <li>Randomization: target displacement, time rescaling, mirroring, observation noise and physics randomization.</li>
+      </ol>
+    </div>
+    <nav class="level stats">
+      <div class="level-item has-text-centered">
+        <div><p class="heading">Recorded motion</p><p class="title is-4">2.5 h</p></div>
+      </div>
+      <div class="level-item has-text-centered">
+        <div><p class="heading">Stitched motion</p><p class="title is-4">8.5 h</p></div>
+      </div>
+      <div class="level-item has-text-centered">
+        <div><p class="heading">Stitched trajectories</p><p class="title is-4">10,000</p></div>
+      </div>
+      <div class="level-item has-text-centered">
+        <div><p class="heading">Control rate</p><p class="title is-4">50 Hz</p></div>
+      </div>
+    </nav>
+    <div class="columns">
+      <div class="column">
+        <figure class="figure">
+          <img src="static/images/retargeting.webp" alt="Human poses next to the retargeted robot poses" loading="lazy">
+          <figcaption class="caption">Human poses from LAFAN1 (top) and AMASS (bottom) next to the robot after retargeting and grounding.</figcaption>
+        </figure>
+      </div>
+      <div class="column">
+        <figure class="figure">
+          <img src="static/images/stitched_example.webp" alt="A stitched trajectory joining a walk and a jump" loading="lazy">
+          <figcaption class="caption">A stitched trajectory: 0.4 s of a walk joined to a jump clip. The two frames at the seam are drawn stronger.</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <h3 class="title is-4">Three architectures</h3>
+    <div class="content">
+      <p>
+        All three share the same interface, the request in and joint targets out, and learn from the same
+        corpus. Each one addresses the limits of the previous.
+      </p>
+    </div>
+    <div class="columns architectures">
+      <div class="column">
+        <div class="arch">
+          <p class="arch-step">1</p>
+          <h4 class="title is-6">Goal-conditioned policy</h4>
+          <p>Trained with PPO. Observes its distance from <i>B</i> and a clock, and is rewarded for following the recorded motion and for reaching <i>B</i> at the deadline.</p>
+          <p class="arch-limit">Learns the average of the motions that realize similar requests, and is not precise enough at the handover.</p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="arch">
+          <p class="arch-step">2</p>
+          <h4 class="title is-6">Conditional VAE</h4>
+          <p>Distilled with DAgger from a tracking teacher. A latent variable selects one motion: number of steps, timing, style.</p>
+          <p class="arch-limit">Decoded contacts are not enforced, a single Gaussian prior, and the latent can be ignored when the corpus shows few alternatives.</p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="arch is-final">
+          <p class="arch-step">3</p>
+          <h4 class="title is-6">Diffusion planner + universal tracker</h4>
+          <p>A diffusion model plans the whole motion between <i>A</i> and <i>B</i>, and a tracker trained with PPO executes it on the robot.</p>
+          <p class="arch-limit">The architecture used in all the results below.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="title is-4">Diffusion planner and universal tracker</h3>
+    <div class="pipeline">
+      <div class="pipe-node">Request<small>history, future, duration</small></div>
+      <div class="pipe-arrow"></div>
+      <div class="pipe-node is-planner">Diffusion planner<small>kinematic plan, once</small></div>
+      <div class="pipe-arrow"><span>plan</span></div>
+      <div class="pipe-node is-tracker">Universal tracker<small>one action per step</small></div>
+      <div class="pipe-arrow"><span>joint targets</span></div>
+      <div class="pipe-node">Robot<small>until step <i>h</i></small></div>
+    </div>
+    <div class="content">
+      <ul>
+        <li><b>Planner.</b> A transformer denoiser in which every frame is a token. It fills the frames between history and future by inpainting, predicting position changes and foot contacts, and samples a plan with 50 DDIM steps. The plan is rebuilt from <i>A</i> and corrected to end exactly in <i>B</i>. Besides reconstruction, the losses penalize jumps between frames, changes that do not add up to <i>B</i>, and sliding feet.</li>
+        <li><b>Tracker.</b> A single PPO policy that follows any short kinematic trajectory. It looks up to 32 steps ahead, so near the handover it already sees the future of the incoming skill, and its action is a correction on top of the joint angles of the plan.</li>
+        <li><b>Deployment.</b> At the interruption the planner generates one plan, the tracker follows it, and at step <i>h</i> control passes to the incoming skill.</li>
+      </ul>
+    </div>
+    <figure class="figure">
+      <img src="static/images/plan_example.webp" alt="A plan of the diffusion planner from walking to jumping" loading="lazy">
+      <figcaption class="caption">
+        A plan for a switch from walking into the crouch of a jump, with a duration of 0.4 s. The planner
+        generates the 20 steps between <i>A</i> and <i>B</i>, without bringing the robot to rest.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- Transitions -->
+<section class="section thread-section" id="transitions">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">Transitions</h2>
+    <div class="content">
+      <p>
+        A transition isolates a single switch on the Unitree G1 and repeats it under controlled conditions. The
+        three skills were obtained in different ways, and the bridge has never seen any of them.
+      </p>
+    </div>
+    <div class="skill-pool">
+      <figure class="skill">
+        <img src="static/images/skill_walk_g1.webp" alt="Walking skill" loading="lazy">
+        <figcaption><b>Walk</b>: velocity tracking with a task reward.</figcaption>
+      </figure>
+      <figure class="skill">
+        <img src="static/images/skill_jump_g1.webp" alt="Jumping skill" loading="lazy">
+        <figcaption><b>Jump</b>: tracks a 1.54 m forward jump that starts from a crouch.</figcaption>
+      </figure>
+      <figure class="skill">
+        <img src="static/images/skill_kick_g1.webp" alt="Kicking skill" loading="lazy">
+        <figcaption><b>Kick</b>: tracks a football kick, with rewards for hitting the ball.</figcaption>
+      </figure>
+    </div>
+
+    <div class="result">
+      <h4 class="title is-6">Walk to jump</h4>
+      <div class="video-slot">
+        <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+          <source src="static/videos/walk2jump.mp4" type="video/mp4" onerror="this.closest('.video-slot').classList.add('is-missing')">
+        </video>
+        <img class="video-fallback" src="static/images/walk2jump.webp" alt="Frames of the switch from walking to jumping" loading="lazy">
+        <span class="video-badge">Video coming soon</span>
+      </div>
+      <p class="caption">
+        The jump starts from a deep crouch and has never seen a walking robot. The bridge, called 0.2 m before
+        the entry point with 0.4 s, drops the pelvis by about 15 cm and stops the forward motion at the
+        take-off. The ghost shows the nominal jump, as performed from the states the skill was trained on.
+      </p>
+    </div>
+
+    <div class="result">
+      <h4 class="title is-6">Walk to kick</h4>
+      <div class="video-slot">
+        <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+          <source src="static/videos/walk2kick.mp4" type="video/mp4" onerror="this.closest('.video-slot').classList.add('is-missing')">
+        </video>
+        <img class="video-fallback" src="static/images/walk2kick.webp" alt="Frames of the switch from walking to kicking" loading="lazy">
+        <span class="video-badge">Video coming soon</span>
+      </div>
+      <p class="caption">
+        The posture barely changes, but the speed does: the entry points of the kick move between 0.2 and
+        1.25 m/s, against 0.7 m/s for the walk. The bridge, called 0.4 m before the entry point with 0.8 s,
+        hands over a robot that is still walking, with the right foot on the ground, in the approach to the ball.
+      </p>
+    </div>
+
+    <div class="result">
+      <h4 class="title is-6">Jump to walk</h4>
+      <div class="video-slot">
+        <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+          <source src="static/videos/jump2walk.mp4" type="video/mp4" onerror="this.closest('.video-slot').classList.add('is-missing')">
+        </video>
+        <img class="video-fallback" src="static/images/jump2walk.webp" alt="Frames of the switch from jumping to walking" loading="lazy">
+        <span class="video-badge">Video coming soon</span>
+      </div>
+      <p class="caption">
+        The bridge starts 0.6 m before the entry point of the walk, while the robot is still absorbing the
+        landing, and has 0.8 s to bring it into the walking cycle.
+      </p>
+    </div>
+
+    <h3 class="title is-4">Bridge against direct switch</h3>
+    <div class="content">
+      <p>
+        In a direct switch the incoming skill takes control immediately, in whatever state the source skill
+        left the robot. The <b>score</b> compares the incoming skill after the switch with its nominal run from
+        the entry point, so 1 means as good as nominal: velocity error for the walk, tracking error for the jump,
+        ball speed for the kick. Each method is run on the same 50 recorded source executions.
+      </p>
+    </div>
+    <div class="table-container">
+      <table class="table is-fullwidth results-table">
+        <thead>
+          <tr>
+            <th rowspan="2">Transition</th>
+            <th colspan="2" class="has-text-centered">Success rate</th>
+            <th colspan="2" class="has-text-centered">Score</th>
+          </tr>
+          <tr>
+            <th class="has-text-centered">Direct</th><th class="has-text-centered">Bridge</th>
+            <th class="has-text-centered">Direct</th><th class="has-text-centered">Bridge</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Walk to kick</td><td>50/50</td><td>50/50</td><td>0.98</td><td class="is-best">1.01</td></tr>
+          <tr><td>Walk to jump</td><td>50/50</td><td>50/50</td><td>0.56</td><td class="is-best">0.87</td></tr>
+          <tr><td>Jump to walk</td><td>50/50</td><td>50/50</td><td>0.35</td><td class="is-best">0.81</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="content">
+      <p>
+        In isolation the direct switch survives, because the incoming skill can start anywhere. It performs much
+        worse, though: right after the landing the walk follows its velocity command with almost three times its
+        nominal error, and a jump started from a walking robot tracks its reference with almost twice the
+        nominal error. In a task, where a skill has to start in a given place, this is what makes direct
+        switches fail (see the <a href="#soccer">soccer demo</a>).
+      </p>
+    </div>
+
+    <h3 class="title is-4">Distance and duration</h3>
+    <div class="content">
+      <p>
+        The bridge is called at a distance from the entry point and given a duration, which together fix the
+        speed it has to keep. Each cell reports the success rate and, in color, the score, with the best entry
+        point for that cell, over 50 trials.
+      </p>
+    </div>
+    <div class="grid-tables">
+      <div class="grid-table">
+        <h4 class="title is-6">Walk to kick</h4>
+        <table class="table heat">
+          <thead><tr><th></th><th>0.4 s</th><th>0.8 s</th><th>1.2 s</th></tr></thead>
+          <tbody>
+            <tr><th>0.2 m</th><td style="--s:1.01">1.01<small>100%</small></td><td style="--s:1.00">1.00<small>100%</small></td><td style="--s:0.99">0.99<small>100%</small></td></tr>
+            <tr><th>0.4 m</th><td style="--s:1.01">1.01<small>100%</small></td><td style="--s:1.01">1.01<small>100%</small></td><td style="--s:1.00">1.00<small>100%</small></td></tr>
+            <tr><th>0.6 m</th><td style="--s:0.97">0.97<small>98%</small></td><td style="--s:1.01">1.01<small>100%</small></td><td style="--s:1.00">1.00<small>100%</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="grid-table">
+        <h4 class="title is-6">Walk to jump</h4>
+        <table class="table heat">
+          <thead><tr><th></th><th>0.4 s</th><th>0.8 s</th><th>1.2 s</th></tr></thead>
+          <tbody>
+            <tr><th>0.2 m</th><td style="--s:0.87">0.87<small>100%</small></td><td style="--s:0.78">0.78<small>100%</small></td><td style="--s:0.77">0.77<small>100%</small></td></tr>
+            <tr><th>0.4 m</th><td style="--s:0.60">0.60<small>64%</small></td><td style="--s:0.72">0.72<small>100%</small></td><td style="--s:0.71">0.71<small>98%</small></td></tr>
+            <tr><th>0.6 m</th><td style="--s:0.49">0.49<small>20%</small></td><td style="--s:0.65">0.65<small>98%</small></td><td style="--s:0.70">0.70<small>96%</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="grid-table">
+        <h4 class="title is-6">Jump to walk</h4>
+        <table class="table heat">
+          <thead><tr><th></th><th>0.4 s</th><th>0.8 s</th><th>1.2 s</th></tr></thead>
+          <tbody>
+            <tr><th>0.2 m</th><td style="--s:0.47">0.47<small>100%</small></td><td style="--s:0.61">0.61<small>100%</small></td><td style="--s:0.63">0.63<small>100%</small></td></tr>
+            <tr><th>0.4 m</th><td style="--s:0.57">0.57<small>100%</small></td><td style="--s:0.76">0.76<small>100%</small></td><td style="--s:0.69">0.69<small>100%</small></td></tr>
+            <tr><th>0.6 m</th><td style="--s:0.60">0.60<small>100%</small></td><td style="--s:0.81">0.81<small>100%</small></td><td style="--s:0.77">0.77<small>100%</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="content">
+      <p>
+        The bridge fails mostly when it has to cover a long distance in little time. Covering 0.6 m in 0.4 s
+        means 1.5 m/s, about twice the walking speed: into the jump this succeeds in a fifth of the trials, and in
+        the failures the robot reaches the crouch with its trunk turned away from the reference.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Demos -->
+<section class="section thread-section" id="demos">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">Demos</h2>
+    <div class="content">
+      <p>
+        The demos call the bridge repeatedly inside complete tasks. A high-level controller requests every
+        switch without knowing how it is made, so it can be as simple or as elaborate as the task requires.
+      </p>
+    </div>
+
+    <h3 class="title is-4" id="soccer">Soccer, Unitree G1</h3>
+    <div class="content">
+      <p>
+        Robots fall often during RoboCup matches, and a fallen robot becomes an obstacle that others stumble
+        over. On a 12 by 8 m pitch, the robot has to jump over a fallen robot 3 m ahead, walk to the ball and kick
+        it into the goal: three switches, walk to jump, jump to walk and walk to kick. The controller follows
+        this fixed sequence and places every entry point with geometric rules, for example so that the jump
+        clears the fallen robot and the kick sends the ball toward the center of the goal.
+      </p>
+    </div>
+    <figure class="figure">
+      <img src="static/images/soccer_follow.webp" alt="A successful run of the soccer demo" loading="lazy">
+      <figcaption class="caption">
+        A run of the soccer demo, with the time and the policy in control. The translucent robot is the entry
+        point of the next skill, the target the bridge has to reach.
+      </figcaption>
+    </figure>
+
+    <div class="columns comparison">
+      <div class="column">
+        <h4 class="title is-6 has-text-centered"><span class="tag-bridge">With the bridge</span></h4>
+        <div class="video-slot">
+          <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+            <source src="static/videos/soccer.mp4" type="video/mp4" onerror="this.closest('.video-slot').classList.add('is-missing')">
+          </video>
+          <div class="video-fallback video-empty"></div>
+          <span class="video-badge">Video coming soon</span>
+        </div>
+      </div>
+      <div class="column">
+        <h4 class="title is-6 has-text-centered"><span class="tag-direct">Direct switches</span></h4>
+        <div class="video-slot">
+          <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+            <source src="static/videos/soccer_direct.mp4" type="video/mp4" onerror="this.closest('.video-slot').classList.add('is-missing')">
+          </video>
+          <div class="video-fallback video-empty"></div>
+          <span class="video-badge">Video coming soon</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table class="table is-fullwidth results-table">
+        <thead>
+          <tr>
+            <th rowspan="2">Switches</th>
+            <th rowspan="2" class="has-text-centered">Completed</th>
+            <th colspan="3" class="has-text-centered">Failed at the switch into</th>
+            <th rowspan="2" class="has-text-centered">Failed elsewhere</th>
+          </tr>
+          <tr><th class="has-text-centered">Jump</th><th class="has-text-centered">Walk</th><th class="has-text-centered">Kick</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Direct</td><td>4/50</td><td>20/50</td><td>0/50</td><td>4/50</td><td>22/50</td></tr>
+          <tr><td>Bridge</td><td class="is-best">50/50</td><td>0/50</td><td>0/50</td><td>0/50</td><td>0/50</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="content">
+      <p>
+        With bridges the task is completed in every run. With direct switches most runs fail: the robot falls
+        right after the switch into the jump, or it misses the point where a skill has to start, for example
+        leaving the jump without clearing the fallen robot or reaching the ball out of line with the kick.
+      </p>
+    </div>
+
+    <h3 class="title is-4" id="sokoban">Sokoban, Booster T1</h3>
+    <div class="content">
+      <p>
+        Sokoban is a puzzle on a grid in which a player pushes boxes onto goal cells, and a careless push can
+        make it unsolvable. Here the player is a Booster T1 on 1 m cells, with three skills: walk straight by a
+        given distance, turn in place and push a box. A classical planner solves the puzzle before the robot
+        moves, the plan is checked cell by cell, and the controller carries it out one action at a time, with a
+        bridge at every change of skill. The run below solves the puzzle in about 89 s through 23 switches.
+      </p>
+    </div>
+    <div class="result">
+      <div class="video-slot">
+        <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+          <source src="static/videos/sokoban.mp4" type="video/mp4" onerror="this.closest('.video-slot').classList.add('is-missing')">
+        </video>
+        <img class="video-fallback" src="static/images/sokoban_scene.webp" alt="The Sokoban scene with the robot, the box and the goal" loading="lazy">
+        <span class="video-badge">Video coming soon</span>
+      </div>
+      <p class="caption">
+        The box cannot be pushed straight onto the goal, because a wall stands in between. It is pushed down by
+        one cell, along the passage below the wall by three, and up onto the goal, and the robot walks around
+        the box between pushes.
+      </p>
+      <details class="frames">
+        <summary>Show the whole run, frame by frame</summary>
+        <img src="static/images/sokoban_steps.webp" alt="Frames of a complete Sokoban run" loading="lazy">
+      </details>
+    </div>
+    <div class="content">
+      <p>
+        The T1 skills all start from a robot standing still, so a direct switch already works between them,
+        and here the bridge adds time rather than making the task possible. The point of the demo is different:
+        a plan produced by a classical planner, with no knowledge of how the switches are made, can be carried
+        out by frozen skills through more than twenty switches.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Limitations -->
+<section class="section thread-section" id="limitations">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">Limitations and future work</h2>
+    <div class="content">
+      <ul>
+        <li>The robot ends close to the target, not on it. How much of this error the incoming skill tolerates depends on the skill, and precision at the handover is the main limit.</li>
+        <li>The plan is kinematic and generated once. Any tracking error at the deadline is an error at the handover; training planner and tracker together, or replanning, could reduce it.</li>
+        <li>A new skill can be connected without training only if the corpus contains motion similar to its states. A measure of corpus coverage would tell in advance whether a switch can be trusted.</li>
+        <li>Target selection is replaced by a proxy. A learned estimate of where each skill succeeds would let the controller choose entry point, distance and duration.</li>
+        <li>All experiments run in simulation, with MuJoCo Warp through mjlab. Hardware deployment is the natural next step.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- BibTeX -->
+<section class="section" id="bibtex">
+  <div class="container is-max-desktop content">
+    <h2 class="title is-3">BibTeX</h2>
+    <pre class="bibtex"><button class="copy-bibtex" title="Copy BibTeX" aria-label="Copy BibTeX"><span class="material-symbols-outlined">content_copy</span></button><code>@mastersthesis{gigliotti2026bridging,
+  title  = {Learning to Bridge Humanoid Robot Skills},
+  author = {Gigliotti, Daniel},
+  school = {Sapienza University of Rome},
+  year   = {2026}
+}</code></pre>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content has-text-centered">
+          <p>
+            Website layout inspired by
+            <a href="https://github.com/nerfies/nerfies.github.io">Nerfies</a>,
+            <a href="https://research.nvidia.com/labs/par/maskedmimic/">MaskedMimic</a>,
+            <a href="https://omniretarget.github.io/">OmniRetarget</a>,
+            <a href="https://beyondmimic.github.io/">BeyondMimic</a> and
+            <a href="https://php-parkour.github.io/">PHP</a>.
+            Licensed under <a href="http://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
