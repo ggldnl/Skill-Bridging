@@ -66,19 +66,20 @@
         <h2 class="title is-3">Abstract</h2>
         <div class="content has-text-justified">
           <p>
-            Humanoid robots can learn agile skills one at a time, such as walking, jumping or kicking a ball,
-            but most tasks need several of them in sequence. A learned skill only works from states similar to
-            those it was trained on, and skills trained independently have no reason to fit together: a jump
-            that starts from a crouch cannot take over from a robot in mid stride.
+            Humanoid robots can learn agile skills individually, including walking, jumping and kicking a
+            ball, while many tasks require several skills to be executed in sequence. Each learned skill is
+            reliable only from states similar to those encountered during training. Independently trained
+            skills are therefore not necessarily compatible: for example, a jumping skill that begins from a
+            crouch may not be able to take control from a robot that is walking.
           </p>
           <p>
-            We study whether a single learned policy, which we call a bridge, can carry the robot from wherever
-            one skill leaves it to a state from which the next one can start, while every skill stays frozen.
-            The bridge is trained on human motion retargeted to the robot rather than on executions of the
-            skills, and is made of a diffusion model that plans the motion of the switch and a tracking policy
-            that executes the plan. We evaluate it in simulation on isolated switches between skills obtained
-            in different ways, on three longer tasks, and against a direct switch and transition policies trained
-            for each pair of skills.
+            We investigate whether a single learned policy, referred to as a bridge, can bring the robot from
+            the state left by one skill to a state from which the next skill can continue, while all skills
+            remain frozen. The bridge is trained on human motion retargeted to the robot, rather than on
+            executions of the skills. It comprises a diffusion model that plans the transition and a tracking
+            policy that executes the plan. We evaluate the approach in simulation on isolated transitions
+            between skills obtained using different methods, in three longer tasks, and against direct
+            switching and transition policies trained for each skill pair.
           </p>
         </div>
       </div>
@@ -92,29 +93,29 @@
     <h2 class="title is-3">Problem Definition</h2>
     <div class="content">
       <p>
-        A skill is a policy trained on its own and then kept frozen. It succeeds only from a limited set of
-        states, its initiation set, which depends on how it was trained. In a task, a higher level decides
-        which skill runs next, and the switch can be requested at any moment. When it is, the robot is in a
-        state <i>A</i> left by the source skill, which is usually outside the initiation set of the incoming
-        skill.
+        A skill is a policy trained independently and then kept frozen. It succeeds only from a limited set
+        of states, referred to as its initiation set, which depends on its training. During a task, a
+        high-level controller selects the next skill and may request a switch at any time. At that point, the
+        robot is in state <i>A</i>, left by the source skill, which typically lies outside the initiation set of
+        the incoming skill.
       </p>
       <p>
-        We insert a bridge between the two skills. When the switch is requested, the bridge takes control
-        and, within a given duration, brings the robot to a target state <i>B</i> from which the incoming
-        skill can continue, then hands over. As targets we use states that the incoming skill goes through in
-        its own runs, so that it is known to continue from them. A single state does not say how the robot
-        is moving, so the bridge receives a short piece of motion on each side: the last second of the source
-        motion, ending in <i>A</i>, and half a second of the incoming motion, starting from <i>B</i>, together
-        with the duration. It does not observe the skills themselves, so the same bridge can be used for
-        every pair.
+        We place a bridge between the two skills. When a switch is requested, the bridge takes control and,
+        within a specified duration, brings the robot to a target state <i>B</i> from which the incoming skill
+        can continue. The bridge then hands over control. Targets are states visited during the incoming
+        skill's own executions, from which continued execution has been observed. Because a single state
+        does not specify the robot's motion, the bridge receives a short motion segment on each side of the
+        switch: the final second of the source motion, ending at <i>A</i>, the first half-second of the incoming
+        motion, beginning at <i>B</i>, and the duration. The bridge does not observe the skills themselves
+        and can therefore be shared across skill pairs.
       </p>
     </div>
     <figure class="figure">
       <img src="static/images/switch_timeline.webp" alt="Timeline of a switch: source skill, bridge, incoming skill" loading="lazy">
       <figcaption class="caption">
-        A switch from walking to jumping. The source skill runs until the switch is requested, in state
-        <i>A</i>. The bridge controls the robot for <i>h</i> steps, and at the handover the incoming skill
-        takes over from <i>B</i>.
+        Switch from walking to jumping. The source skill runs until a switch is requested at state <i>A</i>.
+        The bridge controls the robot for <i>h</i> steps, after which the incoming skill takes over from
+        state <i>B</i>.
       </figcaption>
     </figure>
   </div>
@@ -128,15 +129,15 @@
     <h3 class="title is-4">Motion Data</h3>
     <div class="content">
       <p>
-        The bridge never sees the skills during training. It learns how the robot can move from one state to
-        another from human motion capture, taken from LAFAN1 and from the CMU and KIT subsets of AMASS. We
-        keep locomotion and related motions, such as walking, running, turning, stopping, crouching and
-        jumping, selected in AMASS with the BABEL labels. The motion is retargeted to the robot with GMR, its
-        contact with the floor is corrected, and frames the robot should not be asked to reproduce are
-        discarded. Recorded clips rarely contain the switches the bridge has to make, so we also join pieces
-        of unrelated clips with a motion graph, for example a walk followed by a jump. Training examples are
-        windows cut from these clips: a history and a future, which are given to the bridge, and the motion
-        between them, which it has to produce.
+        The bridge does not observe the skills during training. Instead, it learns how the robot can move
+        between states from human motion capture data from LAFAN1 and the CMU and KIT subsets of AMASS. We
+        select locomotion and related motions, including walking, running, turning, stopping, crouching and
+        jumping; AMASS clips are selected using BABEL labels. We retarget the motion to the robot with GMR,
+        correct its floor contacts and discard frames that the robot should not be required to reproduce.
+        Because recorded clips rarely contain the transitions required by the bridge, we also use a motion
+        graph to join segments from unrelated clips, for example, a walking segment followed by a jump.
+        Training examples are windows extracted from these clips. Each window provides a history and a
+        future to the bridge, which must generate the intervening motion.
       </p>
     </div>
     <figure class="figure">
@@ -151,19 +152,18 @@
     <h3 class="title is-4">Diffusion Planner and Universal Tracker</h3>
     <div class="content">
       <p>
-        The bridge separates deciding how the robot should move from making it move. A planner, a diffusion
-        model trained on the motion data, receives the request and generates the whole kinematic motion
-        between <i>A</i> and <i>B</i> at once, filling the frames between history and future by inpainting.
-        Its denoiser is a transformer in which every frame is a token, and it predicts the changes of the
-        root and joint positions together with the foot contacts. The resulting plan is corrected to end
-        exactly in <i>B</i>.
+        The bridge separates motion planning from execution. A planner, implemented as a diffusion model
+        trained on the motion data, receives the request and generates the complete kinematic trajectory
+        between <i>A</i> and <i>B</i> by inpainting the frames between the history and future. Its denoiser is
+        a transformer that represents each frame as a token and predicts changes in the root and joint
+        positions, together with foot contacts. The resulting plan is corrected to end exactly at <i>B</i>.
       </p>
       <p>
-        A universal tracker, a single policy trained with PPO to follow any short kinematic trajectory, then
-        executes the plan on the robot. It looks up to 32 control steps ahead, so near the end of the bridge
-        it already sees the motion of the incoming skill, and its actions are corrections on top of the joint
-        positions of the plan. The plan is generated once, when the switch is requested, and at the end of the
-        duration control passes to the incoming skill.
+        A universal tracker, a single policy trained with PPO to follow short kinematic trajectories, then
+        executes the plan on the robot. The tracker observes up to 32 control steps ahead; near the end of
+        the bridge, this includes motion from the incoming skill. Its actions provide corrections to the
+        plan's joint positions. The plan is generated once, when the switch is requested, and control passes
+        to the incoming skill when the specified duration expires.
       </p>
     </div>
     <figure class="figure">
@@ -193,10 +193,14 @@
     <div class="content">
       <p>
         Walking follows velocity commands and is trained with a task reward. Jumping tracks a 1.54 m forward
-        jump that starts from a crouch. Kicking tracks a human football kick, with additional rewards for
-        hitting the ball. The four karate skills each track a single strike: oi zuki (lunge punch), mae geri
-        (front kick), mawashi geri (roundhouse kick) and yoko geri (side kick). They are cut from one
-        performer's fight in LAFAN1, so they all open and close in the same guard.
+        jump that begins from a crouch. Kicking tracks a human football kick, with additional rewards for
+        ball contact. The four karate skills each track a single strike: lunge punch, front kick, roundhouse
+        kick and side kick. They are extracted from one performer's fight sequence in LAFAN1 and therefore
+        share the same opening and closing guard.
+      </p>
+      <p>
+        Two additional motion-tracking skills cover rising from a seated position on the floor to standing
+        and sprinting forward. The sprint reference begins with the robot already in motion.
       </p>
     </div>
     <div class="clip-row">
@@ -218,28 +222,28 @@
     <div class="clip-row">
       <figure class="clip" style="--ar: 0.65">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/skills/G1/oi_zuki.mp4" type="video/mp4"></video>
-        <figcaption>Oi zuki</figcaption>
+        <figcaption>Lunge punch</figcaption>
       </figure>
       <figure class="clip" style="--ar: 0.81">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/skills/G1/mae_geri.mp4" type="video/mp4"></video>
-        <figcaption>Mae geri</figcaption>
+        <figcaption>Front kick</figcaption>
       </figure>
       <figure class="clip" style="--ar: 0.79">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/skills/G1/mawashi_geri.mp4" type="video/mp4"></video>
-        <figcaption>Mawashi geri</figcaption>
+        <figcaption>Roundhouse kick</figcaption>
       </figure>
       <figure class="clip" style="--ar: 0.99">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/skills/G1/yoko_geri.mp4" type="video/mp4"></video>
-        <figcaption>Yoko geri</figcaption>
+        <figcaption>Side kick</figcaption>
       </figure>
     </div>
 
     <h3 class="title is-4">Booster T1</h3>
     <div class="content">
       <p>
-        Walking moves forward by a commanded distance and stops at the destination, turning rotates in place
-        to a commanded heading, and pushing moves a box by a given distance. All three are trained with task
-        rewards and are used in the Sokoban task below.
+        The walking skill advances by a commanded distance and stops at the destination. The turning skill
+        rotates in place to a commanded heading, while the pushing skill moves a box by a specified distance.
+        All three skills are trained using task rewards and are used in the Sokoban task below.
       </p>
     </div>
     <div class="clip-row">
@@ -267,15 +271,16 @@
     <h2 class="title is-3">Transitions</h2>
     <div class="content">
       <p>
-        A transition isolates a single switch between two G1 skills. The same bridge is used for all of them.
+        Each transition evaluates a single switch between two G1 skills. The same bridge is used for every
+        transition.
       </p>
     </div>
 
     <h3 class="title is-4">Walking, Jumping and Kicking</h3>
     <div class="content">
       <p>
-        A target state of the incoming skill is placed in front of the robot, and the bridge is called at a
-        given distance before it, with a given duration to reach it.
+        A target state from the incoming skill is placed ahead of the robot. The bridge is invoked at a
+        specified distance from the target and is given a fixed duration in which to reach it.
       </p>
     </div>
 
@@ -285,8 +290,9 @@
         <source src="static/videos/transitions/bridge/walk2jump.mp4" type="video/mp4">
       </video>
       <p class="caption">
-        The jump starts from a deep crouch, and the jumping skill has never observed a walking robot. The
-        bridge lowers the walking robot into the crouch and stops its forward motion where the jump takes off.
+        The jump begins from a deep crouch, and the jumping skill has not observed a walking robot during
+        training. The bridge lowers the walking robot into the crouch and halts its forward motion at the
+        take-off location.
       </p>
     </div>
 
@@ -296,9 +302,9 @@
         <source src="static/videos/transitions/bridge/walk2kick.mp4" type="video/mp4">
       </video>
       <p class="caption">
-        The target lies in the approach to the ball, where the kick is already moving. The posture barely
-        changes, but the speed and the foot on the ground have to match, and the bridge hands over a robot
-        that is still walking.
+        The target lies along the approach to the ball, where the kicking motion is already underway. Although
+        the posture changes little, the robot's speed and supporting foot must match the target motion. The
+        bridge therefore hands over control while the robot is still walking.
       </p>
     </div>
 
@@ -308,37 +314,48 @@
         <source src="static/videos/transitions/bridge/jump2walk.mp4" type="video/mp4">
       </video>
       <p class="caption">
-        The bridge takes control while the robot is still absorbing the landing, and brings it into the
+        The bridge takes control while the robot is still absorbing the landing and brings it into the
         walking cycle.
+      </p>
+    </div>
+
+    <div class="result">
+      <h4 class="title is-6">Sit to sprint</h4>
+      <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+        <source src="static/videos/sit2sprint.mp4" type="video/mp4">
+      </video>
+      <p class="caption">
+        The bridge takes control while the robot is still rising from a floor-sitting position and brings it
+        to an already moving sprint entry. The sprint skill then continues without resetting the robot.
       </p>
     </div>
 
     <h3 class="title is-4">Karate</h3>
     <div class="content">
       <p>
-        Each strike ends in a guard, and the next one starts from a guard held still. The target of the
-        bridge is a state in the opening guard of the incoming strike, placed where the robot stands, and the
-        bridge carries the robot there from the closing guard of the previous strike.
+        Each strike ends in a guard, and the next strike begins from a stationary guard. The bridge target is
+        a state in the incoming strike's opening guard, positioned at the robot's current location. The bridge
+        brings the robot from the closing guard of the preceding strike to this target.
       </p>
     </div>
     <div class="clip-row">
       <figure class="clip" style="--ar: 0.94">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/transitions/bridge/oi_zuki2mae_geri.mp4" type="video/mp4"></video>
-        <figcaption>Oi zuki to mae geri</figcaption>
+        <figcaption>Lunge punch to front kick</figcaption>
       </figure>
       <figure class="clip" style="--ar: 0.88">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/transitions/bridge/mae_geri2mawashi_geri.mp4" type="video/mp4"></video>
-        <figcaption>Mae geri to mawashi geri</figcaption>
+        <figcaption>Front kick to roundhouse kick</figcaption>
       </figure>
     </div>
     <div class="clip-row">
       <figure class="clip" style="--ar: 0.94">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/transitions/bridge/mawashi_geri2yoko_geri.mp4" type="video/mp4"></video>
-        <figcaption>Mawashi geri to yoko geri</figcaption>
+        <figcaption>Roundhouse kick to side kick</figcaption>
       </figure>
       <figure class="clip" style="--ar: 1.03">
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/transitions/bridge/yoko_geri2oi_zuki.mp4" type="video/mp4"></video>
-        <figcaption>Yoko geri to oi zuki</figcaption>
+        <figcaption>Side kick to lunge punch</figcaption>
       </figure>
     </div>
   </div>
@@ -367,12 +384,13 @@
     <h3 class="title is-4">Walking, Jumping and Kicking</h3>
     <div class="content">
       <p>
-        We measure how well the incoming skill performs after the handover, relative to its performance when
-        started from its own states. With its best distance and duration, the bridge scores highest on all
-        three switches. The difference is largest from jumping to walking, where neither baseline prepares the
-        walk, while from walking to jumping the transition policy comes close, and from walking to kicking all
-        three methods kick well. The bridge pays for this with time: it runs for 0.6 to 1.2 s before the
-        handover, against at most 0.18 s for the transition policies.
+        We measure the incoming skill's performance after handover relative to its performance when started
+        from states in its own executions. At its best distance and duration, the bridge achieves the highest
+        score on all three transitions. The largest difference occurs for the jump-to-walk transition, where
+        neither baseline prepares the walking skill. On the walk-to-jump transition, the transition policy
+        approaches the bridge's performance; on the walk-to-kick transition, all three methods perform well.
+        This performance comes at the cost of a longer transition: the bridge runs for 0.6 to 1.2 s before
+        handover, compared with at most 0.18 s for the transition policies.
       </p>
     </div>
 
@@ -396,14 +414,14 @@
         <source src="static/videos/comparison/jump2walk.mp4" type="video/mp4">
       </video>
       <p class="caption">
-        The three runs take different times, so the two baselines are slowed down to start, switch and finish
-        together with the bridge.
+        The three runs have different durations. The two baselines are therefore slowed down so that all
+        methods start, switch and finish at the same times as the bridge.
       </p>
     </div>
 
     <h3 class="title is-4">Karate</h3>
     <div class="content">
-      <p>Between the karate skills, the bridge is compared with the no-op switch.</p>
+      <p>For transitions between karate skills, we compare the bridge with direct switching (the no-op baseline).</p>
     </div>
     <div class="clip-row">
       <figure class="clip" style="--ar: 1.94">
@@ -421,6 +439,25 @@
         <video autoplay muted loop playsinline preload="metadata"><source src="static/videos/comparison/yoko_geri2oi_zuki.mp4" type="video/mp4"></video>
       </figure>
     </div>
+
+    <h3 class="title is-4">Sitting to Sprinting</h3>
+    <div class="content">
+      <p>
+        This comparison shows the bridge and direct switching from the same interrupted sit-to-stand motion.
+        In the recorded no-op run, the robot falls shortly after the sprint skill takes control; the bridge
+        reaches the sprint entry and continues the motion.
+      </p>
+    </div>
+    <div class="result">
+      <h4 class="title is-6">Sit to sprint</h4>
+      <video class="result-video" autoplay muted loop playsinline controls preload="metadata">
+        <source src="static/videos/comparison/sit2sprint.mp4" type="video/mp4">
+      </video>
+      <p class="caption">
+        The runs are synchronized for comparison; the shorter no-op continuation is slowed to match the
+        bridge run.
+      </p>
+    </div>
   </div>
 </section>
 
@@ -430,9 +467,9 @@
     <h2 class="title is-3">Demos</h2>
     <div class="content">
       <p>
-        In the demos a high-level controller decides which skill runs next and requests every switch, which
-        the bridge carries out. Since the bridge only needs the request, the controller does not need to know
-        how a switch is made.
+        In each demonstration, a high-level controller selects the next skill and requests each switch, which
+        the bridge executes. Because the bridge requires only the switch request, the high-level controller
+        does not need to specify how the transition is performed.
       </p>
     </div>
 
@@ -442,9 +479,9 @@
         <source src="static/videos/demos/soccer.mp4" type="video/mp4">
       </video>
       <p class="caption">
-        The robot walks toward a fallen robot, jumps over it, walks to the ball and kicks it into the goal. A
-        simple controller follows this fixed sequence and places the target of each switch with geometric
-        rules derived from the scene, and the bridge connects the three skills while the robot keeps moving.
+        The robot walks toward a fallen robot, jumps over it, proceeds to the ball and kicks it into the goal.
+        A simple controller follows this fixed sequence and places each switch target using geometric rules
+        derived from the scene. The bridge connects the three skills while the robot remains in motion.
       </p>
     </div>
 
@@ -454,9 +491,9 @@
         <source src="static/videos/demos/karate.mp4" type="video/mp4">
       </video>
       <p class="caption">
-        The robot performs a routine of the four karate strikes, oi zuki, mae geri, mawashi geri and yoko
-        geri, without being reset. After each strike, the bridge carries the robot from its closing guard into
-        the guard from which the next strike starts.
+        The robot performs a routine of four karate strikes—a lunge punch, front kick, roundhouse kick and
+        side kick—without being reset. After each strike, the bridge brings the robot from its closing guard
+        to the guard from which the next strike begins.
       </p>
     </div>
 
@@ -466,11 +503,11 @@
         <source src="static/videos/demos/sokoban.mp4" type="video/mp4">
       </video>
       <p class="caption">
-        A classical planner solves the puzzle before the robot moves, and the controller carries out the plan
-        one action at a time with the walking, turning and pushing skills, calling the bridge at every change
-        of skill. This run solves the puzzle in about 89 s through 23 switches. These skills all start from a
-        robot that is nearly still, so here the bridge mostly aligns the robot, for example with the box before
-        a push, rather than making the switch possible.
+        A classical planner computes a solution before the robot moves. The controller then executes the plan
+        one action at a time using the walking, turning and pushing skills, invoking the bridge at each skill
+        change. In this run, the robot solves the puzzle in approximately 89 s over 23 switches. Because all
+        three skills begin from a nearly stationary state, the bridge primarily aligns the robot—for example,
+        with a box before pushing—rather than enabling otherwise infeasible switches.
       </p>
     </div>
   </div>
